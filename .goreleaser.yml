@@ -1,0 +1,19 @@
+version: 2
+before:
+  hooks:
+    - go mod tidy
+builds:
+- id: amicleanup_build
+  env:
+    - CGO_ENABLED=0
+  goos:
+    - linux
+  goarch:
+    - amd64
+  binary: ami-cleanup
+  ldflags: "-s -w"
+archives:
+- format: zip
+  name_template: "renovate-webhook-controller"
+release:
+  draft: true
