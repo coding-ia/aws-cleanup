@@ -84,7 +84,7 @@ func cleanAMIs(ctx context.Context) {
 	}
 
 	if autoCleanup {
-		//deleteAMIs(ctx, svc, filteredAMIs)
+		deleteAMIs(ctx, svc, filteredAMIs)
 	}
 }
 
