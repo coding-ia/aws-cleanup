@@ -1,1 +1,1 @@
-# ami-cleanup
+# aws-cleanup
