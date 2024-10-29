@@ -15,6 +15,6 @@ builds:
   ldflags: "-s -w"
 archives:
 - format: zip
-  name_template: "aws-cleanup"
+  name_template: "aws_cleanup_{{ .Os }}_{{ .Arch }}"
 release:
   draft: true
