@@ -3,17 +3,18 @@ before:
   hooks:
     - go mod tidy
 builds:
-- id: amicleanup_build
+- id: awscleanup_build
   env:
     - CGO_ENABLED=0
   goos:
     - linux
+    - windows
   goarch:
     - amd64
-  binary: ami-cleanup
+  binary: aws-cleanup
   ldflags: "-s -w"
 archives:
 - format: zip
-  name_template: "renovate-webhook-controller"
+  name_template: "aws-cleanup"
 release:
   draft: true

@@ -18,9 +18,10 @@ var region string
 var owner string
 var nameFilter string
 var autoCleanup bool
+var age int
 
 var cleanCmd = &cobra.Command{
-	Use:   "clean",
+	Use:   "ami",
 	Short: "Cleanup AMI's",
 	Run: func(cmd *cobra.Command, args []string) {
 
@@ -34,6 +35,7 @@ func init() {
 	cleanCmd.Flags().StringVarP(&region, "region", "r", "us-east-1", "AWS region to check for AMIs")
 	cleanCmd.Flags().StringVarP(&owner, "owner", "o", "self", "AMI owner")
 	cleanCmd.Flags().StringVarP(&nameFilter, "name", "n", "", "Name filter")
+	cleanCmd.Flags().IntVarP(&age, "age", "a", 30, "Max age")
 	cleanCmd.Flags().BoolVar(&autoCleanup, "auto-cleanup", false, "Automatically delete AMIs and associated snapshots")
 }
 
@@ -45,8 +47,11 @@ func cleanAMIs(ctx context.Context) {
 
 	svc := ec2.NewFromConfig(cfg)
 
-	// Calculate the date 30 days ago
-	cutoffDate := time.Now().AddDate(0, 0, -60)
+	if age <= 0 {
+		log.Fatalf("age cannot be less than or equal to zero")
+	}
+
+	cutoffDate := time.Now().AddDate(0, 0, -age)
 
 	input := &ec2.DescribeImagesInput{
 		Owners: []string{owner},
