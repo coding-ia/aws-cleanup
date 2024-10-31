@@ -3,6 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"log"
 	"strings"
 	"time"
@@ -15,11 +17,13 @@ import (
 )
 
 type AMIOptions struct {
+	AssumeRole  string
 	Region      string
 	Owner       string
 	NameFilter  string
 	Age         int
 	AutoCleanup bool
+	Deprecated  bool
 }
 
 var amiOptions = AMIOptions{}
@@ -36,17 +40,24 @@ var cleanCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(cleanCmd)
 
+	cleanCmd.Flags().StringVar(&amiOptions.AssumeRole, "assume-role", "", "Role to assume")
 	cleanCmd.Flags().StringVarP(&amiOptions.Region, "region", "r", "us-east-1", "AWS region to check for AMIs")
 	cleanCmd.Flags().StringVarP(&amiOptions.Owner, "owner", "o", "self", "AMI owner")
 	cleanCmd.Flags().StringVarP(&amiOptions.NameFilter, "name", "n", "", "Name filter")
 	cleanCmd.Flags().IntVarP(&amiOptions.Age, "age", "a", 30, "Max age")
 	cleanCmd.Flags().BoolVar(&amiOptions.AutoCleanup, "auto-cleanup", false, "Automatically delete AMIs and associated snapshots")
+	cleanCmd.Flags().BoolVar(&amiOptions.Deprecated, "deprecated", false, "Select images that are deprecated")
 }
 
 func cleanAMIs(ctx context.Context) {
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(amiOptions.Region))
 	if err != nil {
 		log.Fatalf("unable to load SDK config, %v", err)
+	}
+
+	if amiOptions.AssumeRole != "" {
+		fmt.Printf("Assuming role: %s\n", amiOptions.AssumeRole)
+		cfg.Credentials = assumeRole(ctx, cfg, amiOptions.AssumeRole)
 	}
 
 	svc := ec2.NewFromConfig(cfg)
@@ -76,7 +87,16 @@ func cleanAMIs(ctx context.Context) {
 		}
 
 		if createdAt.Before(cutoffDate) {
-			filteredAMIs = append(filteredAMIs, image)
+			if !amiOptions.Deprecated {
+				filteredAMIs = append(filteredAMIs, image)
+			} else {
+				if image.DeprecationTime != nil {
+					deprecateAt, _ := time.Parse(time.RFC3339, *image.DeprecationTime)
+					if deprecateAt.Before(time.Now()) {
+						filteredAMIs = append(filteredAMIs, image)
+					}
+				}
+			}
 		}
 	}
 
@@ -134,4 +154,13 @@ func deleteAMIs(ctx context.Context, svc *ec2.Client, images []types.Image) {
 			}
 		}
 	}
+}
+
+func assumeRole(ctx context.Context, cfg aws.Config, roleArn string) aws.CredentialsProvider {
+	stsClient := sts.NewFromConfig(cfg)
+	creds := stscreds.NewAssumeRoleProvider(stsClient, roleArn, func(opts *stscreds.AssumeRoleOptions) {
+		opts.RoleSessionName = "aws-sdk-go-cli-session"
+		opts.Duration = time.Hour
+	})
+	return creds
 }
