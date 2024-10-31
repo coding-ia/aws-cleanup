@@ -3,6 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"log"
 	"strings"
 	"time"
@@ -15,6 +17,7 @@ import (
 )
 
 type AMIOptions struct {
+	AssumeRole  string
 	Region      string
 	Owner       string
 	NameFilter  string
@@ -37,6 +40,7 @@ var cleanCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(cleanCmd)
 
+	cleanCmd.Flags().StringVar(&amiOptions.AssumeRole, "assume-role", "", "Role to assume")
 	cleanCmd.Flags().StringVarP(&amiOptions.Region, "region", "r", "us-east-1", "AWS region to check for AMIs")
 	cleanCmd.Flags().StringVarP(&amiOptions.Owner, "owner", "o", "self", "AMI owner")
 	cleanCmd.Flags().StringVarP(&amiOptions.NameFilter, "name", "n", "", "Name filter")
@@ -49,6 +53,11 @@ func cleanAMIs(ctx context.Context) {
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(amiOptions.Region))
 	if err != nil {
 		log.Fatalf("unable to load SDK config, %v", err)
+	}
+
+	if amiOptions.AssumeRole != "" {
+		fmt.Printf("Assuming role: %s\n", amiOptions.AssumeRole)
+		cfg.Credentials = assumeRole(ctx, cfg, amiOptions.AssumeRole)
 	}
 
 	svc := ec2.NewFromConfig(cfg)
@@ -145,4 +154,13 @@ func deleteAMIs(ctx context.Context, svc *ec2.Client, images []types.Image) {
 			}
 		}
 	}
+}
+
+func assumeRole(ctx context.Context, cfg aws.Config, roleArn string) aws.CredentialsProvider {
+	stsClient := sts.NewFromConfig(cfg)
+	creds := stscreds.NewAssumeRoleProvider(stsClient, roleArn, func(opts *stscreds.AssumeRoleOptions) {
+		opts.RoleSessionName = "aws-sdk-go-cli-session"
+		opts.Duration = time.Hour
+	})
+	return creds
 }
