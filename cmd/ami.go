@@ -14,11 +14,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var region string
-var owner string
-var nameFilter string
-var autoCleanup bool
-var age int
+type AMIOptions struct {
+	Region      string
+	Owner       string
+	NameFilter  string
+	Age         int
+	AutoCleanup bool
+}
+
+var amiOptions = AMIOptions{}
 
 var cleanCmd = &cobra.Command{
 	Use:   "ami",
@@ -32,29 +36,29 @@ var cleanCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(cleanCmd)
 
-	cleanCmd.Flags().StringVarP(&region, "region", "r", "us-east-1", "AWS region to check for AMIs")
-	cleanCmd.Flags().StringVarP(&owner, "owner", "o", "self", "AMI owner")
-	cleanCmd.Flags().StringVarP(&nameFilter, "name", "n", "", "Name filter")
-	cleanCmd.Flags().IntVarP(&age, "age", "a", 30, "Max age")
-	cleanCmd.Flags().BoolVar(&autoCleanup, "auto-cleanup", false, "Automatically delete AMIs and associated snapshots")
+	cleanCmd.Flags().StringVarP(&amiOptions.Region, "region", "r", "us-east-1", "AWS region to check for AMIs")
+	cleanCmd.Flags().StringVarP(&amiOptions.Owner, "owner", "o", "self", "AMI owner")
+	cleanCmd.Flags().StringVarP(&amiOptions.NameFilter, "name", "n", "", "Name filter")
+	cleanCmd.Flags().IntVarP(&amiOptions.Age, "age", "a", 30, "Max age")
+	cleanCmd.Flags().BoolVar(&amiOptions.AutoCleanup, "auto-cleanup", false, "Automatically delete AMIs and associated snapshots")
 }
 
 func cleanAMIs(ctx context.Context) {
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(amiOptions.Region))
 	if err != nil {
 		log.Fatalf("unable to load SDK config, %v", err)
 	}
 
 	svc := ec2.NewFromConfig(cfg)
 
-	if age <= 0 {
+	if amiOptions.Age <= 0 {
 		log.Fatalf("age cannot be less than or equal to zero")
 	}
 
-	cutoffDate := time.Now().AddDate(0, 0, -age)
+	cutoffDate := time.Now().AddDate(0, 0, -amiOptions.Age)
 
 	input := &ec2.DescribeImagesInput{
-		Owners: []string{owner},
+		Owners: []string{amiOptions.Owner},
 	}
 
 	result, err := svc.DescribeImages(ctx, input)
@@ -76,8 +80,8 @@ func cleanAMIs(ctx context.Context) {
 		}
 	}
 
-	if nameFilter != "" {
-		filteredAMIs = filterAMIsByName(nameFilter, filteredAMIs)
+	if amiOptions.NameFilter != "" {
+		filteredAMIs = filterAMIsByName(amiOptions.NameFilter, filteredAMIs)
 	}
 
 	fmt.Printf("Filtered AMIs:\n")
@@ -88,7 +92,7 @@ func cleanAMIs(ctx context.Context) {
 			aws.ToString(ami.CreationDate))
 	}
 
-	if autoCleanup {
+	if amiOptions.AutoCleanup {
 		deleteAMIs(ctx, svc, filteredAMIs)
 	}
 }
