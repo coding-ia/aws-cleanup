@@ -20,6 +20,7 @@ type AMIOptions struct {
 	NameFilter  string
 	Age         int
 	AutoCleanup bool
+	Deprecated  bool
 }
 
 var amiOptions = AMIOptions{}
@@ -41,6 +42,7 @@ func init() {
 	cleanCmd.Flags().StringVarP(&amiOptions.NameFilter, "name", "n", "", "Name filter")
 	cleanCmd.Flags().IntVarP(&amiOptions.Age, "age", "a", 30, "Max age")
 	cleanCmd.Flags().BoolVar(&amiOptions.AutoCleanup, "auto-cleanup", false, "Automatically delete AMIs and associated snapshots")
+	cleanCmd.Flags().BoolVar(&amiOptions.Deprecated, "deprecated", false, "Select images that are deprecated")
 }
 
 func cleanAMIs(ctx context.Context) {
@@ -76,7 +78,16 @@ func cleanAMIs(ctx context.Context) {
 		}
 
 		if createdAt.Before(cutoffDate) {
-			filteredAMIs = append(filteredAMIs, image)
+			if !amiOptions.Deprecated {
+				filteredAMIs = append(filteredAMIs, image)
+			} else {
+				if image.DeprecationTime != nil {
+					deprecateAt, _ := time.Parse(time.RFC3339, *image.DeprecationTime)
+					if deprecateAt.Before(time.Now()) {
+						filteredAMIs = append(filteredAMIs, image)
+					}
+				}
+			}
 		}
 	}
 
