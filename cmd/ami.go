@@ -30,9 +30,8 @@ var amiOptions = AMIOptions{}
 
 var cleanCmd = &cobra.Command{
 	Use:   "ami",
-	Short: "Cleanup AMI's",
+	Short: "AMI cleanup",
 	Run: func(cmd *cobra.Command, args []string) {
-
 		cleanAMIs(cmd.Context())
 	},
 }
@@ -121,7 +120,7 @@ func filterAMIsByName(filter string, images []types.Image) []types.Image {
 	var filtered []types.Image
 
 	for _, image := range images {
-		if strings.Contains(strings.ToLower(aws.ToString(image.Name)), filter) {
+		if strings.Contains(aws.ToString(image.Name), filter) {
 			filtered = append(filtered, image)
 		}
 	}
